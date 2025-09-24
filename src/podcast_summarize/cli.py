@@ -7,7 +7,8 @@ from typing import Optional
 
 import click
 
-from .downloader import PodcastDownloader
+from .audio_downloader import AudioDownloader
+from .metadata import SpotifyMetadataExtractor
 from .transcriber import PodcastTranscriber
 from .summarizer import PodcastSummarizer
 
@@ -74,42 +75,29 @@ def process(ctx, spotify_url, output_dir, whisper_model, summary_type, language,
         ctx.exit(1)
 
     try:
-        # Step 1: Download podcast
+        # Step 1: Extract metadata and download podcast
         click.echo("🎵 Starting podcast processing...")
-        downloader = PodcastDownloader(output_dir=str(output_path) if keep_audio else None)
 
-        # Get episode info first
-        click.echo("📡 Fetching episode information...")
-        episode_info = downloader.get_episode_info(spotify_url)
+        # Extract metadata from Spotify
+        extractor = SpotifyMetadataExtractor()
+        episode_info = extractor.get_episode_metadata(spotify_url)
         click.echo(f"📺 Title: {episode_info['title']}")
-        click.echo(f"👤 Artist: {episode_info['artist']}")
-        click.echo(f"⏱️  Duration: {episode_info['duration']} seconds")
+        click.echo(f"🎙️  Show: {episode_info['show_name']}")
+        click.echo(f"📝 Description: {episode_info['description'][:100]}...")
 
-        # Download audio
-        audio_file = downloader.download(spotify_url)
+        # Download audio from YouTube using metadata
+        downloader = AudioDownloader(output_dir=str(output_path) if keep_audio else None)
+        audio_file = downloader.download_by_search(episode_info['title'], episode_info['show_name'])
 
         # Step 2: Transcribe
         click.echo("🎤 Transcribing audio...")
         transcriber = PodcastTranscriber(model_name=whisper_model)
 
-        # Estimate transcription time
-        estimated_time = transcriber.estimate_transcription_time(
-            episode_info['duration'], whisper_model
+        # Always use chunked transcription for better handling
+        click.echo(f"📝 Using {chunk_duration}s chunks for transcription...")
+        transcription_result = transcriber.transcribe_with_summary_chunks(
+            audio_file, chunk_duration=chunk_duration, language=language
         )
-        click.echo(f"⏱️  Estimated transcription time: {estimated_time:.1f} seconds")
-
-        # Transcribe with chunks for long episodes
-        if episode_info['duration'] > chunk_duration:
-            click.echo(f"📝 Long episode detected. Using {chunk_duration}s chunks...")
-            transcription_result = transcriber.transcribe_with_summary_chunks(
-                audio_file, chunk_duration=chunk_duration, language=language
-            )
-        else:
-            transcription_result = {
-                "full_transcription": transcriber.transcribe(
-                    audio_file, language=language, include_timestamps=True
-                )
-            }
 
         # Save transcription if requested
         if keep_transcript:
@@ -401,16 +389,19 @@ def info(ctx, spotify_url):
     SPOTIFY_URL: Spotify URL of the podcast episode
     """
     try:
-        downloader = PodcastDownloader()
-        episode_info = downloader.get_episode_info(spotify_url)
+        extractor = SpotifyMetadataExtractor()
+        episode_info = extractor.get_episode_metadata(spotify_url)
 
         click.echo("📺 Episode Information:")
         click.echo(f"   Title: {episode_info['title']}")
-        click.echo(f"   Artist: {episode_info['artist']}")
-        click.echo(f"   Album: {episode_info['album']}")
-        click.echo(f"   Duration: {episode_info['duration']} seconds ({episode_info['duration']//60:.0f}:{episode_info['duration']%60:02.0f})")
+        click.echo(f"   Show: {episode_info['show_name']}")
+        click.echo(f"   Publisher: {episode_info['publisher']}")
+        click.echo(f"   Duration: {episode_info['duration']}")
         click.echo(f"   Release Date: {episode_info['release_date']}")
+        click.echo(f"   Description: {episode_info['description'][:100]}...")
         click.echo(f"   URL: {episode_info['url']}")
+        if episode_info.get('image_url'):
+            click.echo(f"   Image: {episode_info['image_url']}")
 
     except Exception as e:
         click.echo(f"❌ Error: {str(e)}", err=True)

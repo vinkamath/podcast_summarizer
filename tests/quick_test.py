@@ -1,41 +1,45 @@
 #!/usr/bin/env python3
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from podcast_summarize.downloader import PodcastDownloader
+from podcast_summarize.metadata import SpotifyMetadataExtractor
+from podcast_summarize.audio_downloader import AudioDownloader
 
 # Test with real debugging
-downloader = PodcastDownloader()
-url = "https://open.spotify.com/episode/2kH22WJJL6k6HRk6oHxNNI?si=333ef8da1388424d"
+def test_metadata_extraction():
+    extractor = SpotifyMetadataExtractor()
+    url = "https://open.spotify.com/episode/2kH22WJJL6k6HRk6oHxNNI?si=333ef8da1388424d"
 
-try:
-    print("Testing with debug...")
+    try:
+        print("Testing metadata extraction...")
+        metadata = extractor.get_episode_metadata(url)
 
-    # Get the webpage content directly
-    response = downloader.session.get(url, timeout=10)
-    response.raise_for_status()
+        print("Metadata extracted:")
+        for key, value in metadata.items():
+            print(f"  {key}: {value}")
 
-    from bs4 import BeautifulSoup
-    soup = BeautifulSoup(response.text, 'html.parser')
+        return metadata
 
-    print(f"Status: {response.status_code}")
+    except Exception as e:
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
 
-    # Test our metadata extraction function directly
-    metadata = downloader._extract_metadata_from_html(soup, url)
+def test_audio_download():
+    downloader = AudioDownloader(output_dir="./test_output")
 
-    print("Metadata extracted:")
-    for key, value in metadata.items():
-        print(f"  {key}: {value}")
+    try:
+        print("\nTesting audio download...")
+        audio_file = downloader.download_by_search("How to Spend Your 20s in the AI Era", "Lightcone Podcast")
+        print(f"Downloaded: {audio_file}")
+        return audio_file
+    except Exception as e:
+        print(f"Download error: {e}")
+        return None
 
-    # Also check what we can see directly
-    title_tag = soup.find('meta', property='og:title')
-    print(f"\nDirect og:title check: {title_tag.get('content') if title_tag else 'Not found'}")
-
-    desc_tag = soup.find('meta', property='og:description')
-    print(f"Direct og:description check: {desc_tag.get('content')[:100] + '...' if desc_tag and desc_tag.get('content') else 'Not found'}")
-
-except Exception as e:
-    print(f"Error: {e}")
-    import traceback
-    traceback.print_exc()
+if __name__ == "__main__":
+    metadata = test_metadata_extraction()
+    if metadata:
+        test_audio_download()
