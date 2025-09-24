@@ -1,10 +1,10 @@
 # Podcast Summarization Tool
 
-A powerful CLI tool that downloads podcasts from Spotify URLs, transcribes them using OpenAI's Whisper, and generates intelligent summaries using Google's Gemini Flash 2.5 API.
+A powerful CLI tool that downloads podcasts from YouTube and other platforms, transcribes them using OpenAI's Whisper, and generates intelligent summaries using Google's Gemini Flash 2.5 API.
 
 ## Features
 
-- 🎵 **Download podcasts** from Spotify URLs using spotdl
+- 🎵 **Download podcasts** from YouTube and other platforms using yt-dlp
 - 🎤 **Transcribe audio** with OpenAI Whisper (multiple model sizes available)
 - 🤖 **Generate summaries** with Google Gemini Flash 2.5 (brief, comprehensive, or bullet points)
 - ⚡ **Chunked processing** for long episodes with automatic time-based segmentation
@@ -236,7 +236,7 @@ export GEMINI_API_KEY='your-google-gemini-api-key'
 
 # Optional
 export WHISPER_CACHE_DIR='/path/to/whisper/cache'
-export SPOTDL_CACHE_DIR='/path/to/spotdl/cache'
+export YT_DLP_CACHE_DIR='/path/to/yt-dlp/cache'
 ```
 
 ### Configuration File
@@ -246,7 +246,7 @@ Create `.env` file in your project directory:
 ```env
 GEMINI_API_KEY=your-api-key-here
 WHISPER_CACHE_DIR=/tmp/whisper_cache
-SPOTDL_CACHE_DIR=/tmp/spotdl_cache
+YT_DLP_CACHE_DIR=/tmp/yt_dlp_cache
 ```
 
 ## Examples
@@ -392,7 +392,7 @@ MIT License - see LICENSE file for details.
 
 - [OpenAI Whisper](https://github.com/openai/whisper) for speech recognition
 - [Google Gemini](https://ai.google.dev/) for text summarization
-- [spotDL](https://github.com/spotDL/spotify-downloader) for Spotify downloads
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) for YouTube and multi-platform downloads
 - [Click](https://click.palletsprojects.com/) for CLI framework
 
 ## Changelog
