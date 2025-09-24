@@ -46,9 +46,6 @@ cd podcast-summarize
 
 # Install in development mode
 pip install -e .
-
-# Or install from requirements.txt
-pip install -r requirements.txt
 ```
 
 ## Quick Start
@@ -360,12 +357,12 @@ podcast_summarize/
 │       ├── __init__.py
 │       ├── __main__.py
 │       ├── cli.py           # Command-line interface
-│       ├── downloader.py    # Spotify download logic
+│       ├── audio_downloader.py  # YouTube/yt-dlp download logic
+│       ├── metadata.py      # Spotify metadata extraction
 │       ├── transcriber.py   # Whisper transcription
 │       └── summarizer.py    # Gemini summarization
 ├── tests/                   # Test files
 ├── pyproject.toml          # Project configuration
-├── requirements.txt        # Dependencies
 └── README.md              # This file
 ```
 
