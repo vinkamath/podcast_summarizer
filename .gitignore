@@ -1,0 +1,15 @@
+# Output directories
+output/
+
+# Virtual environment
+env/
+
+# Python cache and build files
+__pycache__/
+*.egg-info/
+
+# Environment files
+.env
+
+# Claude code
+.claude

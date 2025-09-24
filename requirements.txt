@@ -1,0 +1,6 @@
+spotdl>=4.2.0
+openai-whisper>=20231117
+google-genai>=1.0.0
+click>=8.0.0
+tqdm>=4.64.0
+python-dotenv>=1.0.0
