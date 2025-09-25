@@ -180,6 +180,18 @@ class SpotifyMetadataExtractor:
                             metadata['title'] = parts[0].strip()
                             metadata['show_name'] = parts[1].strip()
 
+            # Try to extract show name from description if still unknown
+            if metadata['show_name'] == 'Unknown' and metadata['description']:
+                desc = metadata['description']
+                # Handle format "Show Name · Episode" or "Show Name · Something"
+                if ' · ' in desc:
+                    parts = desc.split(' · ')
+                    if len(parts) >= 1:
+                        potential_show = parts[0].strip()
+                        # Avoid using "Unknown" or very short strings as show names
+                        if potential_show and potential_show != 'Unknown' and len(potential_show) > 3:
+                            metadata['show_name'] = potential_show
+
         except Exception as e:
             click.echo(f"Warning: Error extracting some metadata: {e}")
 
