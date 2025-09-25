@@ -48,9 +48,10 @@ def main(ctx, verbose):
 @click.option("--keep-audio", is_flag=True, help="Keep downloaded audio file")
 @click.option("--keep-transcript", is_flag=True, help="Keep transcription file")
 @click.option("--chunk-duration", default=300, type=int, help="Duration of chunks in seconds for long podcasts")
+@click.option("--yes", "-y", is_flag=True, help="Skip download confirmation prompts")
 @click.pass_context
 def process(ctx, spotify_url, output_dir, whisper_model, summary_type, language,
-           keep_audio, keep_transcript, chunk_duration):
+           keep_audio, keep_transcript, chunk_duration, yes):
     """Process a podcast from Spotify URL to summary.
 
     This command downloads the podcast, transcribes it, and generates a summary
@@ -86,7 +87,10 @@ def process(ctx, spotify_url, output_dir, whisper_model, summary_type, language,
         click.echo(f"📝 Description: {episode_info['description'][:100]}...")
 
         # Download audio from YouTube using metadata
-        downloader = AudioDownloader(output_dir=str(output_path) if keep_audio else None)
+        downloader = AudioDownloader(
+            output_dir=str(output_path) if keep_audio else None,
+            auto_confirm=yes
+        )
         audio_file = downloader.download_by_search(episode_info['title'], episode_info['show_name'])
 
         # Step 2: Transcribe
