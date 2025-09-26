@@ -103,10 +103,14 @@ def process(ctx, spotify_url, output_dir, whisper_model, summary_type, language,
             audio_file, chunk_duration=chunk_duration, language=language
         )
 
-        # Save transcription if requested
-        if keep_transcript:
-            transcript_file = output_path / f"{Path(audio_file).stem}_transcript.json"
-            transcriber.save_transcription(transcription_result, transcript_file)
+        # Always save transcription to transcripts folder
+        transcripts_dir = output_path / "output" / "transcripts"
+        transcripts_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create lowercase filename from episode title
+        episode_title = episode_info['title'].lower().replace(' ', '_').replace(':', '_').replace('?', '').replace('!', '').replace('/', '_')
+        transcript_file = transcripts_dir / f"{episode_title}_transcript.json"
+        transcriber.save_transcription(transcription_result, transcript_file)
 
         # Step 3: Summarize
         click.echo("🤖 Generating summary with Gemini Flash 2.5...")
@@ -127,16 +131,17 @@ def process(ctx, spotify_url, output_dir, whisper_model, summary_type, language,
             )
 
         # Step 4: Save results
-        episode_name = Path(audio_file).stem
+        summaries_dir = output_path / "output" / "summaries"
+        summaries_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save summary in multiple formats
-        summary_json = output_path / f"{episode_name}_summary.json"
-        summary_md = output_path / f"{episode_name}_summary.md"
-        summary_txt = output_path / f"{episode_name}_summary.txt"
+        # Save summary as single markdown file (primary output)
+        summary_md = summaries_dir / f"{episode_title}_summary.md"
 
-        summarizer.save_summary(summary_result, summary_json, format="json")
-        summarizer.save_summary(summary_result, summary_md, format="md")
-        summarizer.save_summary(summary_result, summary_txt, format="txt")
+        # Combine chunks into single markdown summary
+        combined_summary = _create_combined_markdown_summary(episode_info, summary_result, transcription_result)
+
+        with open(summary_md, 'w', encoding='utf-8') as f:
+            f.write(combined_summary)
 
         # Cleanup
         if not keep_audio:
@@ -145,8 +150,7 @@ def process(ctx, spotify_url, output_dir, whisper_model, summary_type, language,
         # Show results
         click.echo("\n✅ Processing complete!")
         click.echo(f"📄 Summary saved to: {summary_md}")
-        click.echo(f"📊 JSON data saved to: {summary_json}")
-        click.echo(f"📝 Text summary saved to: {summary_txt}")
+        click.echo(f"🎙️  Transcript saved to: {transcript_file}")
 
         if verbose:
             click.echo(f"\n📈 Statistics:")
@@ -473,6 +477,60 @@ def setup():
         click.echo("   ✅ Gemini API Key: Set")
     else:
         click.echo("   ❌ Gemini API Key: Not set")
+
+
+def _create_combined_markdown_summary(episode_info, summary_result, transcription_result):
+    """Create a combined markdown summary from chunks and metadata."""
+    from datetime import datetime
+
+    # Start with metadata header
+    md_content = f"""# {episode_info['title']}
+
+**Show**: {episode_info['show_name']}
+**Description**: {episode_info['description']}
+**Generated**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+---
+
+"""
+
+    # Add main summary
+    if "final_summary" in summary_result:
+        # Multi-chunk summary
+        md_content += f"""## Summary
+
+{summary_result['final_summary']}
+
+### Statistics
+- **Total chunks**: {summary_result['total_chunks']}
+- **Chunk summaries combined into final summary**
+
+"""
+
+        # Optionally include individual chunk summaries
+        if "chunk_summaries" in summary_result:
+            md_content += "### Individual Chunk Summaries\n\n"
+            for i, chunk_summary in enumerate(summary_result["chunk_summaries"], 1):
+                md_content += f"#### Chunk {i}\n{chunk_summary}\n\n"
+
+    else:
+        # Single summary
+        md_content += f"""## Summary
+
+{summary_result.get('summary', 'No summary available')}
+
+"""
+
+    # Add full transcript if available
+    if "full_transcription" in transcription_result:
+        md_content += f"""---
+
+## Full Transcript
+
+{transcription_result['full_transcription']['text']}
+"""
+
+    return md_content
 
 
 if __name__ == "__main__":
