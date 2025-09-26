@@ -89,7 +89,8 @@ def process(ctx, spotify_url, output_dir, whisper_model, summary_type, language,
         # Download audio from YouTube using metadata
         downloader = AudioDownloader(
             output_dir=str(output_path) if keep_audio else None,
-            auto_confirm=yes
+            auto_confirm=yes,
+            verbose=verbose
         )
         audio_file = downloader.download_by_search(episode_info['title'], episode_info['show_name'])
 

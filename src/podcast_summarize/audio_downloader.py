@@ -11,16 +11,18 @@ import yt_dlp
 class AudioDownloader:
     """Download audio files using yt-dlp."""
 
-    def __init__(self, output_dir: Optional[str] = None, auto_confirm: bool = False):
+    def __init__(self, output_dir: Optional[str] = None, auto_confirm: bool = False, verbose: bool = False):
         """Initialize the audio downloader.
 
         Args:
             output_dir: Directory to save downloaded files. If None, uses temp directory.
             auto_confirm: If True, skip confirmation prompts and download automatically.
+            verbose: If True, show detailed search and download information.
         """
         self.output_dir = Path(output_dir) if output_dir else Path(tempfile.gettempdir())
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.auto_confirm = auto_confirm
+        self.verbose = verbose
 
     def download_by_search(self, title: str, artist_or_show: str) -> Path:
         """Download audio by searching with title and artist/show name on YouTube.
@@ -39,6 +41,12 @@ class AudioDownloader:
             # Create search query
             search_query = f"{title} {artist_or_show}"
             click.echo(f"🔍 Searching YouTube for: {search_query}")
+
+            if self.verbose:
+                click.echo(f"   📋 Search parameters:")
+                click.echo(f"      Title: '{title}'")
+                click.echo(f"      Show: '{artist_or_show}'")
+                click.echo(f"      Full query: '{search_query}'")
 
             # Configure yt-dlp options
             ydl_opts = {
@@ -63,8 +71,20 @@ class AudioDownloader:
                 if not info or 'entries' not in info or len(info['entries']) == 0:
                     raise RuntimeError("No videos found for the search query")
 
+                if self.verbose:
+                    click.echo(f"   ✅ Found {len(info['entries'])} result(s)")
+
                 video_info = info['entries'][0]
                 video_url = video_info['webpage_url']
+
+                if self.verbose:
+                    view_count = video_info.get('view_count', 'Unknown')
+                    upload_date = video_info.get('upload_date', 'Unknown')
+                    click.echo(f"   📊 Video details:")
+                    click.echo(f"      ID: {video_info.get('id', 'Unknown')}")
+                    click.echo(f"      Views: {view_count:,}" if isinstance(view_count, int) else f"      Views: {view_count}")
+                    click.echo(f"      Upload date: {upload_date}")
+                    click.echo(f"      URL: {video_url}")
 
                 # Show user what was found and ask for confirmation
                 title = video_info.get('title', 'Unknown')
