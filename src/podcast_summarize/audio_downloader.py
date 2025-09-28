@@ -1,5 +1,6 @@
 """Download audio files using yt-dlp for YouTube and other platforms."""
 
+import re
 import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -38,38 +39,61 @@ class AudioDownloader:
             RuntimeError: If download fails
         """
         try:
-            # Create search query
-            search_query = f"{title} {artist_or_show}"
-            click.echo(f"🔍 Searching YouTube for: {search_query}")
+            # Create search query with fallback strategies (show name first for better podcast discovery)
+            original_query = f"{artist_or_show} {title}"
+            click.echo(f"🔍 Searching YouTube for: {original_query}")
+
+            # Create fallback queries in case the first one fails
+            fallback_queries = self._create_fallback_queries(title, artist_or_show)
+
+            if fallback_queries:
+                click.echo(f"   🔄 Fallback strategies prepared: {len(fallback_queries)} alternatives")
+                for i, query in enumerate(fallback_queries, 1):
+                    click.echo(f"      {i}. {query}")
 
             if self.verbose:
                 click.echo(f"   📋 Search parameters:")
                 click.echo(f"      Title: '{title}'")
                 click.echo(f"      Show: '{artist_or_show}'")
-                click.echo(f"      Full query: '{search_query}'")
+                click.echo(f"      Full query: '{original_query}' ({len(original_query)} chars)")
 
-            # Configure yt-dlp options
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'extractaudio': True,
-                'audioformat': 'mp3',
-                'audioquality': '320K',
-                'outtmpl': str(self.output_dir / '%(title)s.%(ext)s'),
-                'noplaylist': True,
+            # Configure yt-dlp options for search only (minimal to avoid issues)
+            search_opts = {
                 'quiet': True,
                 'no_warnings': True,
+                'socket_timeout': 10,
             }
 
-            click.echo("⬇️ Downloading audio...")
+            # Search using minimal yt-dlp options
+            with yt_dlp.YoutubeDL(search_opts) as ydl:
+                # Try the original query first, then fallbacks
+                all_queries = [original_query] + fallback_queries
+                video_info = None
+                successful_query = None
 
-            # Search and download using yt-dlp
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # Search for the video
-                search_url = f"ytsearch1:{search_query}"
-                info = ydl.extract_info(search_url, download=False)
+                for i, query in enumerate(all_queries):
+                    try:
+                        if i > 0:
+                            click.echo(f"   🔄 Trying fallback query {i}: '{query}'")
 
-                if not info or 'entries' not in info or len(info['entries']) == 0:
-                    raise RuntimeError("No videos found for the search query")
+                        search_url = f"ytsearch1:{query}"
+                        info = ydl.extract_info(search_url, download=False)
+
+                        if info and 'entries' in info and len(info['entries']) > 0:
+                            video_info = info['entries'][0]
+                            successful_query = query
+                            if i > 0:
+                                click.echo(f"   ✅ Success with query: '{query}'")
+                            break
+                        else:
+                            click.echo(f"   ❌ No results for: '{query}'")
+
+                    except Exception as e:
+                        click.echo(f"   ❌ Query failed: '{query}' - {e}")
+                        continue
+
+                if not video_info:
+                    raise RuntimeError(f"No videos found for any search query (tried {len(all_queries)} variations)")
 
                 if self.verbose:
                     click.echo(f"   ✅ Found {len(info['entries'])} result(s)")
@@ -105,9 +129,23 @@ class AudioDownloader:
                 else:
                     click.echo(f"\n✅ Auto-confirming download of '{title}'")
 
+                # Configure yt-dlp options for download
+                download_opts = {
+                    'format': 'bestaudio/best',
+                    'extractaudio': True,
+                    'audioformat': 'mp3',
+                    'audioquality': '320K',
+                    'outtmpl': str(self.output_dir / '%(title)s.%(ext)s'),
+                    'noplaylist': True,
+                    'quiet': True,
+                    'no_warnings': True,
+                    'socket_timeout': 30,
+                }
+
                 click.echo("⬇️ Downloading audio...")
-                # Download the audio
-                ydl.download([video_url])
+                # Download the audio with separate downloader instance
+                with yt_dlp.YoutubeDL(download_opts) as download_ydl:
+                    download_ydl.download([video_url])
 
             # Find the downloaded file
             downloaded_files = list(self.output_dir.glob("*.mp3")) + list(self.output_dir.glob("*.m4a")) + list(self.output_dir.glob("*.webm"))
@@ -212,3 +250,54 @@ class AudioDownloader:
                 click.echo(f"Cleaned up: {file_path}")
         except Exception as e:
             click.echo(f"Warning: Could not clean up {file_path}: {e}")
+
+    def _create_fallback_queries(self, title: str, show: str) -> list[str]:
+        """Create fallback search queries with different strategies."""
+        fallback_queries = []
+
+        # Clean up title by removing special characters and common words
+        title_cleaned = re.sub(r'[^\w\s-]', ' ', title)  # Remove special chars except hyphens
+        title_words = [w for w in title_cleaned.split() if len(w) > 2 and w.lower() not in ['the', 'and', 'vs', 'with']]
+
+        # Apply common term substitutions for better matching
+        title_with_substitutions = self._apply_term_substitutions(title)
+        title_sub_cleaned = re.sub(r'[^\w\s-]', ' ', title_with_substitutions)
+        title_sub_words = [w for w in title_sub_cleaned.split() if len(w) > 2 and w.lower() not in ['the', 'and', 'vs', 'with']]
+
+        # Clean up show name
+        show_cleaned = re.sub(r'[^\w\s]', ' ', show)
+
+        # Strategy 1: Show name + key title words with substitutions
+        if len(title_sub_words) > 3:
+            key_words = title_sub_words[:3]  # First 3 meaningful words
+            fallback_queries.append(f"{show_cleaned} {' '.join(key_words)}")
+
+        # Strategy 2: Show name + key title words (original)
+        if len(title_words) > 3:
+            key_words = title_words[:3]  # First 3 meaningful words
+            fallback_queries.append(f"{show_cleaned} {' '.join(key_words)}")
+
+        # Strategy 3: Show name + fewer title words with substitutions
+        if len(title_sub_words) >= 2:
+            fallback_queries.append(f"{show_cleaned} {' '.join(title_sub_words[:2])}")
+
+        # Strategy 4: Show name + fewer title words (original)
+        if len(title_words) >= 2:
+            fallback_queries.append(f"{show_cleaned} {' '.join(title_words[:2])}")
+
+        return fallback_queries
+
+    def _apply_term_substitutions(self, title: str) -> str:
+        """Apply common term substitutions to improve search matching."""
+        substitutions = {
+            'GPT-OSS': 'OpenAI',
+            'GPT OSS': 'OpenAI',
+            'ChatGPT': 'OpenAI',
+            'GPT': 'OpenAI',
+        }
+
+        result = title
+        for original, replacement in substitutions.items():
+            result = re.sub(r'\b' + re.escape(original) + r'\b', replacement, result, flags=re.IGNORECASE)
+
+        return result
