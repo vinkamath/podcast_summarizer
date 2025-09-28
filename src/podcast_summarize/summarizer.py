@@ -84,6 +84,17 @@ class PodcastSummarizer:
                 )
                 bar.update(100)
 
+            if not hasattr(response, 'text') or response.text is None:
+                error_msg = "No text content in API response"
+                if hasattr(response, 'prompt_feedback') and hasattr(response.prompt_feedback, 'block_reason'):
+                    error_msg += f" - Block reason: {response.prompt_feedback.block_reason}"
+                if hasattr(response, 'candidates') and response.candidates:
+                    if hasattr(response.candidates[0], 'finish_reason'):
+                        error_msg += f" - Finish reason: {response.candidates[0].finish_reason}"
+                    if hasattr(response.candidates[0], 'safety_ratings'):
+                        error_msg += f" - Safety ratings: {response.candidates[0].safety_ratings}"
+                raise RuntimeError(error_msg)
+
             summary_text = response.text.strip()
 
             # Process the response based on summary type
